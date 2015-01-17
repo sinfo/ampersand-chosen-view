@@ -98,7 +98,7 @@ SelectView.prototype.render = function () {
     }.bind(this));
   }
 
-  jquery(this.select).chosen();
+  jquery(this.select).chosen({width: "300px"});
 
   this.rendered = true;
 };
