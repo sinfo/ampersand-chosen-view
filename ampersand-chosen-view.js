@@ -27,6 +27,7 @@ var defaultTemplate = [
  *  - [value]:    initial value for the field
  *  - [el]:       dom node to use for the view
  *  - [required]: is field required
+ *  - [width]:    input width
  *
  *  - [validClass]: class to apply to root element if valid
  *  - [invalidClass]: class to apply to root element if invalid
@@ -59,17 +60,13 @@ function SelectView (opts) {
   this.invalidClass = opts.invalidClass || 'input-invalid';
   this.requiredMessage = opts.requiredMessage || 'Selection required';
 
+  this.width = opts.width || '100%';
+
   this.onChange = this.onChange.bind(this);
 
-  if(this.isMultiple) {
-    this.value = opts.value || [];
-  }
+  this.value = opts.value || [];
 
   this.render();
-
-  if(!this.isMultiple) {
-    this.setValue(opts.value);
-  }
 }
 
 SelectView.prototype.render = function () {
@@ -94,9 +91,11 @@ SelectView.prototype.render = function () {
     this.updateSelectedOption();
   }
 
-  jquery(this.select).chosen({width: '300px'}).change(this.onChange);
+  jquery(this.select).chosen({width: this.width}).change(this.onChange);
 
   this.rendered = true;
+
+  this.validate();
 };
 
 SelectView.prototype.onChange = function (ev, change) {
@@ -141,18 +140,22 @@ SelectView.prototype.renderOptions = function () {
   }
 
   this.options.forEach(function (option) {
-    var value = false;
-    if(self.isMultiple && self.value) {
-      if (Array.isArray(option) && option.length === 2) {
-        value = self.value.indexOf(option[0]) != -1;
-      }
-      else {
-        value = self.value.indexOf(option) != -1;
+    var selected = false;
+    var optionValue = option;
+    if (Array.isArray(option) && option.length === 2) {
+      optionValue = option[0];
+    }
+
+    if(self.value) {
+      if(self.isMultiple) {
+        selected = self.value.indexOf(optionValue) != -1;
+      } else {
+        selected = (self.value == optionValue);
       }
     }
 
     this.select.appendChild(
-      createOption(this.getOptionValue(option), this.getOptionText(option), value)
+      createOption(this.getOptionValue(option), this.getOptionText(option), selected)
     );
   }.bind(this));
 };
@@ -191,6 +194,7 @@ SelectView.prototype.setValue = function (value) {
   this.value = value;
   this.validate();
   this.updateSelectedOption();
+  this.renderOptions();
   if (this.parent) this.parent.update(this);
 };
 
