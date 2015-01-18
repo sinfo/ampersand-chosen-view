@@ -21,6 +21,7 @@ var defaultTemplate = [
 /* opts:
  *  - name:       name of the field
  *  - parent:     parent form reference
+ *  - isMultiple: true if you want to support multiple results
  *  - options:    array/collection of options to render into the select box
  *  - [unselectedText]: text to display if unselected
  *  - [value]:    initial value for the field
@@ -30,28 +31,19 @@ var defaultTemplate = [
  *  - [validClass]: class to apply to root element if valid
  *  - [invalidClass]: class to apply to root element if invalid
  *  - [requiredMessage]: message to display if invalid and required
- *
- *  Additional opts, if options is a collection:
- *  - [idAttribute]: model attribute to use as the id for the option node
- *  - [textAttribute]: model attribute to use as the text of the option node in the select box
- *  - [yieldModel]: (defaults true) if options is a collection, yields the full model rather than just it's id to .value
  */
 
 function SelectView (opts) {
+  var self = this;
   opts = opts || {};
 
   if (typeof opts.name !== 'string') throw new Error('SelectView requires a name property.');
   this.name = opts.name;
 
-  if (!Array.isArray(opts.options) && !opts.options.isCollection) {
+  if (!Array.isArray(opts.options)) {
     throw new Error('SelectView requires select options.');
   }
   this.options = opts.options;
-
-  if (this.options.isCollection) {
-    this.idAttribute = opts.idAttribute || this.options.mainIndex || 'id';
-    this.textAttribute = opts.textAttribute || 'text';
-  }
 
   this.el = opts.el;
   this.value = null;
@@ -62,15 +54,22 @@ function SelectView (opts) {
   this.yieldModel = (opts.yieldModel === false) ? false : true;
 
   this.required = opts.required || false;
+  this.isMultiple = opts.isMultiple || false;
   this.validClass = opts.validClass || 'input-valid';
   this.invalidClass = opts.invalidClass || 'input-invalid';
   this.requiredMessage = opts.requiredMessage || 'Selection required';
 
   this.onChange = this.onChange.bind(this);
 
+  if(this.isMultiple) {
+    this.value = opts.value || [];
+  }
+
   this.render();
 
-  this.setValue(opts.value);
+  if(!this.isMultiple) {
+    this.setValue(opts.value);
+  }
 }
 
 SelectView.prototype.render = function () {
@@ -86,29 +85,33 @@ SelectView.prototype.render = function () {
   this.select = this.el.querySelector('select');
   if (matches(this.el, 'select')) this.select = this.el;
   if (this.select) this.select.setAttribute('name', this.name);
+  if (this.select && this.isMultiple) this.select.setAttribute('multiple', '');
 
-  this.bindDOMEvents();
+  // this.bindDOMEvents();
   this.renderOptions();
-  this.updateSelectedOption();
 
-  if (this.options.isCollection) {
-    this.options.on('add remove reset', function () {
-      this.renderOptions();
-      this.updateSelectedOption();
-    }.bind(this));
+  if(!this.isMultiple) {
+    this.updateSelectedOption();
   }
 
-  jquery(this.select).chosen({width: "300px"});
+  jquery(this.select).chosen({width: '300px'}).change(this.onChange);
 
   this.rendered = true;
 };
 
-SelectView.prototype.onChange = function () {
-  var value = this.select.options[this.select.selectedIndex].value;
+SelectView.prototype.onChange = function (ev, change) {
+  if(this.isMultiple) {
+    if(change && change.selected) {
+      this.addValue(change.selected);
+    }
+    else if(change && change.deselected) {
+      this.removeValue(change.deselected);
+    }
 
-  if (this.options.isCollection && this.yieldModel) {
-    value = this.findModelForId(value);
+    return;
   }
+
+  var value = this.select.options[this.select.selectedIndex].value;
 
   this.setValue(value);
 };
@@ -122,11 +125,12 @@ SelectView.prototype.findModelForId = function (id) {
   }.bind(this))[0];
 };
 
-SelectView.prototype.bindDOMEvents = function () {
-  this.el.addEventListener('change', this.onChange, false);
-};
+// SelectView.prototype.bindDOMEvents = function () {
+//   this.el.addEventListener('change', this.onChange, false);
+// };
 
 SelectView.prototype.renderOptions = function () {
+  var self = this;
   if (!this.select) return;
 
   this.select.innerHTML = '';
@@ -137,8 +141,18 @@ SelectView.prototype.renderOptions = function () {
   }
 
   this.options.forEach(function (option) {
+    var value = false;
+    if(self.isMultiple && self.value) {
+      if (Array.isArray(option) && option.length === 2) {
+        value = self.value.indexOf(option[0]) != -1;
+      }
+      else {
+        value = self.value.indexOf(option) != -1;
+      }
+    }
+
     this.select.appendChild(
-      createOption(this.getOptionValue(option), this.getOptionText(option))
+      createOption(this.getOptionValue(option), this.getOptionText(option), value)
     );
   }.bind(this));
 };
@@ -151,11 +165,6 @@ SelectView.prototype.updateSelectedOption = function () {
   if (!lookupValue) {
     this.select.selectedIndex = 0;
     return;
-  }
-
-  //Pull out the id if it's a model
-  if (this.options.isCollection && this.yieldModel) {
-    lookupValue = lookupValue && lookupValue[this.idAttribute];
   }
 
   if (lookupValue) {
@@ -179,53 +188,45 @@ SelectView.prototype.remove = function () {
 SelectView.prototype.setValue = function (value) {
   if (value === this.value) return;
 
-  //Coerce and find the right value based on yieldModel
-  if (this.options.isCollection) {
-    var model;
-
-    if (this.options.indexOf(value) === -1) {
-      model = this.findModelForId(value);
-    } else {
-      model = value;
-    }
-
-    if (this.yieldModel) {
-      value = model;
-    } else {
-      if (model) {
-        value = model[this.idAttribute];
-      } else {
-        value = void 0;
-      }
-    }
-  }
-
   this.value = value;
   this.validate();
   this.updateSelectedOption();
   if (this.parent) this.parent.update(this);
 };
 
+SelectView.prototype.addValue = function (value) {
+  if (this.value.indexOf(value) != -1) return;
+
+  this.value.push(value);
+  this.validate();
+  this.renderOptions();
+  if (this.parent) this.parent.update(this);
+};
+
+SelectView.prototype.removeValue = function (value) {
+  var index = this.value.indexOf(value);
+  if (index == -1) return;
+
+  this.value.splice(index, 1);
+  this.validate();
+  this.renderOptions();
+  if (this.parent) this.parent.update(this);
+};
+
 SelectView.prototype.validate = function () {
-  this.valid = this.options.some(function (element) {
-
-    //If it's a collection, ensure it's in the collection
-    if (this.options.isCollection) {
-      if (this.yieldModel) {
-        return this.options.indexOf(this.value) > -1;
-      } else {
-        return !!this.findModelForId(this.value);
+  if(!this.isMultiple) {
+    this.valid = this.options.some(function (element) {
+      //[ ['foo', 'Foo Text'], ['bar', 'Bar Text'] ]
+      if (Array.isArray(element) && element.length === 2) {
+        return element[0] === this.value;
       }
-    }
 
-    //[ ['foo', 'Foo Text'], ['bar', 'Bar Text'] ]
-    if (Array.isArray(element) && element.length === 2) {
-      return element[0] === this.value;
-    }
-
-    //[ 'foo', 'bar', 'baz' ]
-    return element === this.value;
-  }.bind(this));
+      //[ 'foo', 'bar', 'baz' ]
+      return element === this.value;
+    }.bind(this));
+  } else {
+    this.valid = Array.isArray(this.value);
+  }
 
   if (!this.valid && this.required) {
     this.setMessage(this.requiredMessage);
@@ -238,12 +239,6 @@ SelectView.prototype.validate = function () {
 
 SelectView.prototype.getOptionValue = function (option) {
   if (Array.isArray(option)) return option[0];
-
-  if (this.options.isCollection) {
-    if (this.idAttribute && option[this.idAttribute]) {
-      return option[this.idAttribute];
-    }
-  }
 
   return option;
 };
@@ -270,20 +265,18 @@ SelectView.prototype.setMessage = function (message) {
 SelectView.prototype.getOptionText = function (option) {
   if (Array.isArray(option)) return option[1];
 
-  if (this.options.isCollection) {
-    if (this.textAttribute && option[this.textAttribute]) {
-      return option[this.textAttribute];
-    }
-  }
-
   return option;
 };
 
-function createOption (value, text) {
+function createOption (value, text, selected) {
   var node = document.createElement('option');
 
   //Set to empty-string if undefined or null, but not if 0, false, etc
   if (value === null || value === undefined) { value = ''; }
+
+  if(selected) {
+    node.setAttribute('selected', '');
+  }
 
   node.textContent = text;
   node.value = value;

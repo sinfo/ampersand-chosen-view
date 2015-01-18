@@ -7,9 +7,9 @@ var chosenCss = require('./vendor/chosen.css');
 var input = new Input({
     label: 'Colors',
     name: 'color',
-    value: ['green'],
-    minLength: 0,
-    maxLength: 2,
+    unselectedText: 'Select one',
+    value: ['green', 'blue'],
+    isMultiple: true,
     options: [
       ['red', 'Red'],
       ['green', 'Green'],
@@ -24,7 +24,7 @@ var formView = new FormView({
     el: form,
     fields: [input],
     submitCallback: function (vals) {
-        console.log(vals);
+        console.log(vals.color);
     }
 });
 
