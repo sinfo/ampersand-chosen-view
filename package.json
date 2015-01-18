@@ -6,8 +6,7 @@
   "browserify": {
     "transform": [
       "browserify-shim",
-      "ampersand-version",
-      "browserify-css"
+      "ampersand-version"
     ]
   },
   "bugs": {
@@ -66,7 +65,7 @@
   "scripts": {
     "test": "browserify test/index.js | tape-run -b phantom | tap-spec",
     "start": "run-browser test/*",
-    "demo": "beefy demo.js --live true"
+    "demo": "beefy demo.js -- -t browserify-css"
   },
   "testling": {
     "files": "test/*.js",
