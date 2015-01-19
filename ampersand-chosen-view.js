@@ -1,7 +1,8 @@
-/* $AMPERSAND_VERSION */
+/* global document, $AMPERSAND_VERSION */
 var domify = require('domify');
 var dom = require('ampersand-dom');
 var matches = require('matches-selector');
+var clone = require('amp-clone');
 
 var jquery = require('jquery');
 var chosen = require('chosen');
@@ -64,7 +65,7 @@ function SelectView (opts) {
 
   this.onChange = this.onChange.bind(this);
 
-  this.value = opts.value || [];
+  this.value = opts.value && clone(opts.value) || [];
 
   this.render();
 }

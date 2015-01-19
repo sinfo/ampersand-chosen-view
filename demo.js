@@ -1,4 +1,4 @@
-/*global console, window*/
+/*global document, console, window*/
 // can be run with `npm run demo`
 var Input = require('./ampersand-chosen-view');
 var FormView = require('ampersand-form-view');
